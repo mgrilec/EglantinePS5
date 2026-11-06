@@ -33,6 +33,49 @@ The first build takes a while (RADV and Eden are large). Later builds reuse ever
 already exists: the dependencies, this checkout's build cache in
 `~/.cache/ps5-eden-headless.<hash>`, and ccache.
 
+## Docker build environment
+
+The repository includes a Linux build image for hosts that do not provide the required
+Ubuntu 26.04 toolchain. Install Docker Engine, then run these commands from this checkout:
+
+```bash
+# Smoke check: build the image if needed, start the container, and check its toolchain.
+tools/docker-build.sh make toolchain
+
+# Build the release; JOBS=3 and RADV_BUILD_JOBS=3 are set by the wrapper.
+tools/docker-build.sh make release
+```
+
+The wrapper builds `docker/Dockerfile` on the first run and reuses the local image
+`eglantineps5-build:ubuntu-26.04`. To refresh the image after changing its package list:
+
+```bash
+docker build -f docker/Dockerfile -t eglantineps5-build:ubuntu-26.04 .
+```
+
+Each invocation runs the requested arguments inside the container. With no arguments, it
+runs `make release`. `tools/docker-build.sh make clean` removes this checkout's `build/`
+and `dist/`; `make distclean` also removes its fetched `.deps` and build cache.
+
+The wrapper mounts this isolated worktree writable at its host path. It also mounts the
+four required sibling dependency checkouts, the linked worktree's common Git metadata,
+and a persistent `.eglantineps5-docker-cache` directory next to the checkout. Other
+projects in the parent workspace are not mounted. The worktree and these required mounts
+persist on the host. The container runs as the invoking user's numeric UID and GID, so
+generated files remain user-owned. Git metadata is writable so Git can initialize the
+Eglantine submodule.
+
+The wrapper expects this checkout at `/root/projects/EglantinePS5-docker-build` with
+dependencies beside it, matching `tools/deps.json`. It fetches any missing pinned sibling
+repository on the host before starting Docker; it does not change existing sibling
+checkouts. Override the default job limits with `JOBS=<n>` and `RADV_BUILD_JOBS=<n>` when
+invoking the wrapper. `make deps` fetches other pinned inputs and initializes Eglantine in
+this checkout. The first image build and release build need network access. The build needs
+substantial disk space for the image, RADV, Eden, dependency sources and caches. Docker
+Desktop or a remote Docker daemon may not share this host path or UID/GID behavior; adapt
+the wrapper's bind mounts if the checkout is elsewhere. The container builds the package
+but cannot deploy it to a console through the host's network automatically.
+
 ## Make targets
 
 | Target | What it does |

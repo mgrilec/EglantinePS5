@@ -1,0 +1,4 @@
+**
+!tools/
+!tools/ci/
+!tools/ci/ubuntu-packages.txt
